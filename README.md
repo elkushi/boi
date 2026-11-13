@@ -51,7 +51,19 @@ end on either phone when it learns an HP is zero.
 
 Keyboard: `←` `→` move · `↑` jump · `J` punch · `K` kick · `U` uppercut ·
 `L` block · `I` super / hold to charge · `T` taunt · `1` `2` `3` reactions ·
-`M` mute. Phones: touch controls, landscape.
+`M` mute. Phones: touch controls, landscape; 🔊 in the reaction row mutes.
+Tapping a start button asks for fullscreen and locks landscape, so the browser
+bar does not eat the buttons.
+
+## Phones: why it is sized and drawn this way
+
+`100vh` on mobile Chrome includes the hidden address bar, so a 16:9 box sized
+by CSS alone overflows the screen and the bottom row of buttons disappears. The
+stage is sized from `innerHeight` in JS instead. The canvas backing store is
+the on-screen size (capped at 1920 px wide), not a fixed 2560×1440; the arena is
+pre-rendered once into an offscreen canvas; emoji and projectile gradients are
+cached; sprites are `ImageBitmap`s; and `ctx.filter` is never used, because it
+drops Android Chrome's canvas to software rendering.
 
 ## Build
 
