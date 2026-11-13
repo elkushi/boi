@@ -90,6 +90,12 @@ canvas{display:block;width:100%;height:100%}
   border-radius:99px;padding:calc(6px*var(--s)) calc(14px*var(--s));opacity:0;transition:opacity .25s;
   pointer-events:none;white-space:nowrap}
 #toast.on{opacity:1}
+.timer{pointer-events:auto}
+#dbg{position:absolute;left:calc(14px*var(--s));top:calc(100px*var(--s));font:600 12px/1.5 monospace;
+  color:#9FE870;background:rgba(0,0,0,.6);padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;display:none;z-index:5}
+#dbg.on{display:block}
+.ld{height:calc(14px*var(--s));background:#fff;border:calc(2px*var(--s)) solid var(--cream-2);border-radius:99px;overflow:hidden;margin:calc(10px*var(--s)) auto 0;width:calc(300px*var(--s));max-width:90%}
+.ld i{display:block;height:100%;width:0;background:var(--blood);transition:width .2s}
 
 /* ---------- touch ---------- */
 #touch{position:absolute;inset:auto 0 0 0;padding:max(8px,calc(10px*var(--s))) max(8px,calc(12px*var(--s)));
@@ -215,6 +221,7 @@ kbd{font-family:var(--ui);font-weight:700;font-size:calc(11px*var(--s));backgrou
         <button id="e1">❤️</button><button id="e2">😂</button><button id="e3">😡</button><button id="e0">🔊</button>
       </div>
       <div id="toast"></div>
+      <div id="dbg"></div>
     </div>
 
     <div id="shout"></div>
@@ -265,6 +272,8 @@ kbd{font-family:var(--ui);font-weight:700;font-size:calc(11px*var(--s));backgrou
 const CFG = { p1:'Мустафа', p2:'Алиса', rounds:2, roundSecs:75 };
 const SPRITES = /*__SPRITES__*/{};
 const META    = /*__META__*/{};
+const FILES   = /*__FILES__*/{};
+const VER     = /*__VER__*/'';
 const FB      = /*__FIREBASE__*/null;
 const IMG={};
 
@@ -277,8 +286,15 @@ const LINES={
     'Прости… шучу, не прости!', 'Ты красивая, но получишь!', 'Мама сказала не бить девочек. Мама не видит.',
     'Ай! Алис, больно же!', 'Сейчас покажу, кто тут главный по пульту!', 'Один удар — и ужин готовишь ты!' ],
   alisa:[ 'Мустафа, иди учи падежи!', 'Это за холодный чай!', 'Я вообще-то тренировалась!',
-    'Ой, прости! Нет, не прости.', 'Ты до меня даже не дотянешься!', 'Люблю тебя. Но сейчас — нет.',
+    'Ой, прости! Нет, не прости.', 'Ты до меня даже не дотянешься!', 'Это не мешает мне тебя любить!',
     'Кто сильнее? Я!', 'Ещё удар — и посуда твоя на неделю!' ],
+};
+/* реплики при попадании: говорит тот, кто ударил (иногда, не чаще раза в 3 с) */
+const HIT_LINES={
+  moustafa:[ 'Иди учи арабский, блять!', 'Это арабский удар!', 'Вот тебе за падежи!', 'Ялла, вставай!',
+    'Учи арабский, потом поговорим!', 'Хабиби, это было больно?' ],
+  alisa:[ 'Это не мешает мне тебя любить!', 'Учи русский, хабиби!', 'Вот тебе склонение!', 'Люблю. Но бью.',
+    'Сначала падежи, потом поцелуи!', 'Это за «ложить»!' ],
 };
 const KO_LINES={
   moustafa:[ 'Алиса требует реванш!', 'Мустафа теперь главный по пульту', 'Алиса: «ты поддавался? нет? ну ладно»',
@@ -385,6 +401,22 @@ let state='intro', round=1, clock=CFG.roundSecs, shakeT=0, shakeAmt=0;
 let hitParts=[], pops=[], projs=[], items=[], fx=[], roundOver=0, matchOver=false;
 let mods={moon:0,fast:0}, chaosT=0, projId=0, itemId=0, timeWait=0, roundAge=0;
 let rec=loadRec();
+/* отладка: тройной тап по таймеру */
+const DBG={on:false,frames:0,drawMs:0,steps:0,maxSteps:0,fps:0,avgDraw:0,ping:-1,pk:0,pks:0,t:0,taps:0,tapT:0,pingT:0};
+function dbgTick(now){
+  if(now-DBG.t<1000) return;
+  DBG.fps=DBG.frames; DBG.avgDraw=DBG.frames?DBG.drawMs/DBG.frames:0; DBG.pks=DBG.pk;
+  DBG.frames=0; DBG.drawMs=0; DBG.pk=0; DBG.t=now;
+  if(DBG.on){ $('dbg').textContent=`fps ${DBG.fps}  draw ${DBG.avgDraw.toFixed(2)} ms  steps/frame max ${DBG.maxSteps}
+net ${NET.on?('ping '+(DBG.ping<0?'…':DBG.ping+' ms')+'  in '+DBG.pks+'/s'):'offline'}  dpr ${(devicePixelRatio||1).toFixed(2)}  canvas ${cvs.width}x${cvs.height}
+v ${VER}`; }
+  DBG.maxSteps=0;
+}
+function dbgPing(now){
+  if(!DBG.on||!NET.on||!NET.room||now-DBG.pingT<2000) return;
+  DBG.pingT=now; const t0=performance.now();
+  NET.room.child('pg'+NET.me).set(Date.now()).then(()=>{ DBG.ping=Math.round(performance.now()-t0); }).catch(()=>{});
+}
 function loadRec(){ try{ const r=JSON.parse(localStorage.getItem('boi')||'{}');
   return {w1:r.w1|0, w2:r.w2|0, matches:r.matches|0}; }catch(e){ return {w1:0,w2:0,matches:0}; } }
 function saveRec(){ try{ localStorage.setItem('boi',JSON.stringify(rec)); }catch(e){} }
@@ -430,6 +462,8 @@ hold($('bH'),()=>{hQ=true;});
 hold($('bT'),()=>{tQ=true;});
 hold($('bS'),()=>{sQ=true;K.s=true;},()=>K.s=false);
 [1,2,3].forEach(i=>$('e'+i).addEventListener('pointerdown',e=>{e.preventDefault();eQ=i;}));
+$('clock').addEventListener('pointerdown',e=>{ const n=performance.now(); if(n-DBG.tapT>700) DBG.taps=0; DBG.tapT=n;
+  if(++DBG.taps>=3){ DBG.taps=0; DBG.on=!DBG.on; $('dbg').classList.toggle('on',DBG.on); } });
 $('e0').addEventListener('pointerdown',e=>{e.preventDefault();toggleMute();$('e0').textContent=muted?'🔇':'🔊';});
 const TOUCH=matchMedia('(hover:none) and (pointer:coarse)').matches;
 if(TOUCH){ $('touch').hidden=false; $('rotate').classList.add('armed'); }
@@ -444,7 +478,7 @@ function goFull(){
 }
 
 /* ---------- сеть ---------- */
-const NET={on:false,db:null,room:null,code:'',me:0,host:false,last:0,rate:1/20,seen:{},joined:false,lastSeen:0};
+const NET={on:false,db:null,room:null,code:'',me:0,host:false,last:0,rate:1/30,seen:{},joined:false,lastSeen:0,lastPkt:''};
 let REMOTE=null;
 function netAvailable(){ return !!(FB && window.firebase); }
 function netInit(){
@@ -465,16 +499,21 @@ function netSend(force){
   if(!force && now-NET.last<NET.rate*1000) return;
   NET.last=now;
   const m=me();
-  NET.room.child('p'+NET.me).set({x:Math.round(m.x),y:Math.round(m.y),f:m.face,hp:Math.round(m.hp),
-    b:m.block?1:0, po:poseOf(m), m:Math.round(m.meter), dn:m.down>0?1:0, t:Date.now()});
+  const pkt={x:Math.round(m.x),y:Math.round(m.y),vx:Math.round(m.vx),vy:Math.round(m.vy),f:m.face,hp:Math.round(m.hp),
+    b:m.block?1:0, po:poseOf(m), m:Math.round(m.meter), dn:m.down>0?1:0};
+  const key=JSON.stringify(pkt);
+  if(!force && key===NET.lastPkt && now-NET.hb<500) return;      // ничего не изменилось - молчим (heartbeat раз в 0.5 с)
+  NET.lastPkt=key; NET.hb=now; pkt.t=Date.now();
+  NET.room.child('p'+NET.me).set(pkt);
 }
 function netAttach(){
   const r=NET.room;
   r.child('p'+(1-NET.me)).on('value',sn=>{
     const v=sn.val();
     if(!v){ if(NET.joined && state==='fight') opponentLeft(); return; }
-    REMOTE=REMOTE||{}; NET.lastSeen=performance.now();
-    REMOTE.x=v.x; REMOTE.y=v.y; REMOTE.face=v.f; REMOTE.hp=v.hp; REMOTE.block=!!v.b;
+    REMOTE=REMOTE||{}; NET.lastSeen=performance.now(); DBG.pk++;
+    REMOTE.x=v.x; REMOTE.y=v.y; REMOTE.vx=v.vx||0; REMOTE.vy=v.vy||0; REMOTE.at=performance.now();
+    REMOTE.face=v.f; REMOTE.hp=v.hp; REMOTE.block=!!v.b;
     REMOTE.pose=v.po||'idle'; REMOTE.meter=v.m||0; REMOTE.down=!!v.dn;
   });
   r.child('ev').on('child_added',sn=>{
@@ -482,7 +521,8 @@ function netAttach(){
     NET.seen[sn.key]=1;
     if(e.ts && Date.now()-e.ts>20000) return;                 // старые события комнаты
     switch(e.t){
-      case 'hit':   takeHit(me(), e.dmg, e.kb, e.up, e.blocked, e.d, e.kind); if(e.pid) projs=projs.filter(p=>p.id!==e.pid); break;
+      case 'hit':   takeHit(me(), e.dmg, e.kb, e.up, e.blocked, e.d, e.kind); if(e.pid) projs=projs.filter(p=>p.id!==e.pid);
+                    if(e.say>=0){ const o=foe(); o.bubble=HIT_LINES[o.who][e.say]; o.bubT=2.2; } break;
       case 'proj':  projs.push({id:e.id,x:e.x,y:e.y,vx:e.vx,who:e.who,remote:true,life:3,t:0}); break;
       case 'pgone': projs=projs.filter(p=>p.id!==e.id); break;
       case 'taunt': doTaunt(foe(), e.i, e.ph, true); break;
@@ -559,6 +599,7 @@ function pressBtn(f,btn){
 function startAttack(f,kind){
   f.atk=kind; f.t=0; f.phase='wind'; f.hitDone=false; f.lunge=0; f.chainQ=null; f.charge=false;
   if(!MOVES[kind].super) SFX.swing();
+  if(NET.on && f===me()) netSend(true);          // замах уходит сразу, не ждёт тика
 }
 function hitBox(f){
   const M=MOVES[f.atk]; if(!M||!M.reach) return null;
@@ -757,7 +798,11 @@ function stepF(f,dt,input){
           const dmg = Math.round((blocked ? M.dmg*0.2 : M.dmg)*giant);
           const kb  = blocked ? M.kb*0.35 : M.kb;
           const up  = blocked ? 0 : M.up;
-          if(NET.on && other===foe()) netEvent({t:'hit',dmg,kb,up,blocked,d:f.face,kind:f.atk});
+          let say=-1;
+          if(!blocked && performance.now()-(f.sayT||0)>3000 && Math.random()<0.45){
+            say=Math.floor(Math.random()*HIT_LINES[f.who].length); f.sayT=performance.now();
+            f.bubble=HIT_LINES[f.who][say]; f.bubT=2.2; }
+          if(NET.on && other===foe()) netEvent({t:'hit',dmg,kb,up,blocked,d:f.face,kind:f.atk,say});
           takeHit(other,dmg,kb,up,blocked,f.face,f.atk);
           f.meter=Math.min(100,f.meter+(blocked?4:12)); if(f.meter>=100 && !M.super) f.powerT=0.4;
           f.hitstop = blocked?0.02:(dmg>=15?0.08:0.045);
@@ -822,9 +867,12 @@ function step(dt){
   if(NET.on){
     const o=foe();
     if(REMOTE){
-      o.x += (REMOTE.x-o.x)*Math.min(1,dt*18);
-      o.y += (REMOTE.y-o.y)*Math.min(1,dt*18);
-      if(Math.abs(REMOTE.x-o.x)>260) o.x=REMOTE.x;
+      // экстраполяция: соперник продолжает движение между пакетами, а не скользит к старой точке
+      const age=Math.min(0.12,(performance.now()-REMOTE.at)/1000);
+      const tx=REMOTE.x+REMOTE.vx*age, ty=Math.min(GND-FH, REMOTE.y+REMOTE.vy*age);
+      o.x += (tx-o.x)*Math.min(1,dt*20);
+      o.y += (ty-o.y)*Math.min(1,dt*20);
+      if(Math.abs(tx-o.x)>260) o.x=tx;
       o.face=REMOTE.face; o.block=REMOTE.block; o.rpose=REMOTE.pose; o.meter=REMOTE.meter;
       o.down = REMOTE.down?1:0; o.on = o.y+FH>=GND-2;
       if(typeof REMOTE.hp==='number' && REMOTE.hp<o.hp && roundAge>1){ o.hp=REMOTE.hp; updHUD(); if(o.hp<=0 && roundOver<=0) endRound(o); }
@@ -950,11 +998,10 @@ function poseOf(f){
 }
 function drawFighter(f){
   const pose = (NET.on && f===foe() && f.rpose) ? f.rpose : poseOf(f);
-  let key=f.who+'_'+pose, img=IMG[key], mt=META[key];
-  if(!img||!img.width){ key=f.who+'_idle'; img=IMG[key]; mt=META[key]; }
-  if(!img) return;
+  let mt=META[f.who+'_'+pose] || META[f.who+'_idle']; if(!mt) return;
+  const img=IMG[mt.a]; if(!img||!img.width) return;
   const big = f.big>0 ? 1+0.4*Math.min(1,f.big*3)*Math.min(1,(9-f.big)*3) : 1;
-  const w=img.width*big, h=img.height*big, ax=(mt&&mt.ax)||0.5;
+  const w=mt.w*big, h=mt.h*big, ax=mt.ax||0.5;
   const cx = f.x+FW/2, by = f.y+FH;
   ctx.save();
   ctx.fillStyle='rgba(8,6,14,.36)';
@@ -969,9 +1016,9 @@ function drawFighter(f){
   ctx.translate(cx, by);
   ctx.scale(f.face<0?-1:1, 1);
   ctx.scale(1/f.sq, f.sq);
-  ctx.drawImage(img, -w*ax, -h, w, h);
+  ctx.drawImage(img, mt.x,mt.y,mt.w,mt.h, -w*ax, -h, w, h);
   if(f.flash>0){ ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.75;   // вспышка без ctx.filter (он роняет GPU на Android)
-    ctx.drawImage(img, -w*ax, -h, w, h); ctx.drawImage(img, -w*ax, -h, w, h); }
+    ctx.drawImage(img, mt.x,mt.y,mt.w,mt.h, -w*ax, -h, w, h); ctx.drawImage(img, mt.x,mt.y,mt.w,mt.h, -w*ax, -h, w, h); }
   ctx.restore();
   if(f.bubble) drawBubble(f, big);
 }
@@ -1073,8 +1120,9 @@ function updHUD(){
   pips('pp1',F1.wins); pips('pp2',F2.wins);
   $('score').textContent = rec.w1+' — '+rec.w2;
 }
-let _m1=-1,_m2=-1,_mr=null;
+let _m1=-1,_m2=-1,_mr=null,_mt=0;
 function updMeter(){
+  const n=performance.now(); if(n-_mt<100) return; _mt=n;
   const a=Math.round(F1.meter), b=Math.round(F2.meter);
   if(a!==_m1){ _m1=a; $('mb1').style.transform='scaleX('+(a/100)+')'; $('mw1').classList.toggle('full',a>=100); }
   if(b!==_m2){ _m2=b; $('mb2').style.transform='scaleX('+(b/100)+')'; $('mw2').classList.toggle('full',b>=100); }
@@ -1199,22 +1247,29 @@ function loop(ts){
   const dt=Math.min(.05,(ts-last)/1000||0); last=ts;
   if(state==='fight'){
     acc+=dt; let g=0;
-    while(acc>=FIXED && g++<6){ step(FIXED); acc-=FIXED; }
-    if(acc>FIXED*4) acc=0;
+    while(acc>=FIXED && g<4){ step(FIXED); acc-=FIXED; g++; }
+    if(acc>FIXED*2) acc=0;
+    if(g>DBG.maxSteps) DBG.maxSteps=g;
   } else { stepFx(dt); if(shakeT>0) shakeT-=dt; for(const f of FS){ if(f.bubT>0){ f.bubT-=dt; if(f.bubT<=0) f.bubble=null; } } }
-  draw();
+  const d0=performance.now(); draw(); DBG.drawMs+=performance.now()-d0; DBG.frames++; dbgTick(ts); dbgPing(ts);
 }
 function boot(){
   $('f1').src=SPRITES.moustafa_portrait; $('f2').src=SPRITES.alisa_portrait;
   $('n1').textContent=CFG.p1; $('n2').textContent=CFG.p2;
   rescale();
-  const names=Object.keys(SPRITES); let left=names.length;
-  names.forEach(n=>{ const im=new Image();
-    im.onload=()=>{ IMG[n]=im;
-      if(window.createImageBitmap && n!=='arena') createImageBitmap(im).then(b=>{ IMG[n]=b; }).catch(()=>{});
-      if(--left===0) ready(); };
-    im.onerror=()=>{ if(--left===0) ready(); }; im.src=SPRITES[n]; });
-  if(!names.length) ready();
+  if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+  openOv(`<div class="duo"><img src="${SPRITES.moustafa_portrait}" alt=""><span>VS</span><img src="${SPRITES.alisa_portrait}" alt=""></div>
+    <h1>Бой</h1><p id="ldt">Загрузка…</p><div class="ld"><i id="ldb"></i></div>`);
+  const keys=Object.keys(FILES); let done=0;
+  const prog=()=>{ const el=$('ldb'); if(el) el.style.width=Math.round(done/keys.length*100)+'%'; };
+  Promise.all(keys.map(k=>new Promise(res=>{
+    const im=new Image(); im.decoding='async';
+    im.onload=()=>{ const fin=b=>{ IMG[k]=b; done++; prog(); res(); };
+      if(window.createImageBitmap) createImageBitmap(im).then(fin).catch(()=>fin(im)); else fin(im); };
+    im.onerror=()=>{ done++; prog(); res(); };
+    im.src=FILES[k];
+  }))).then(ready);
+  if(!keys.length) ready();
 }
 function ready(){
   FONT_DISP=getComputedStyle(document.documentElement).getPropertyValue('--disp'); FONT_UI=getComputedStyle(document.documentElement).getPropertyValue('--ui');

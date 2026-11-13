@@ -65,6 +65,24 @@ pre-rendered once into an offscreen canvas; emoji and projectile gradients are
 cached; sprites are `ImageBitmap`s; and `ctx.filter` is never used, because it
 drops Android Chrome's canvas to software rendering.
 
+## Speed
+
+- Sprites ship as two WebP atlases (one per fighter) plus a WebP arena in
+  `assets/`, named by content hash; the page itself is ~80 KB. A loading bar
+  shows while they decode into `ImageBitmap`s.
+- `sw.js` caches the assets for good and the page network-first, so the
+  second open is instant and works offline.
+- Network: state goes out at up to 30 Hz but only when it changed (heartbeat
+  every 0.5 s), with velocities; the other phone extrapolates up to 120 ms
+  ahead instead of sliding to a stale point. An attack sends its wind-up
+  immediately.
+- Debug readout: tap the round clock three times for fps, draw time, physics
+  steps per frame, ping to Firebase and packets per second.
+- The database is `us-central1` (no region in the URL); from Moscow that is
+  ~160 ms per message. A Realtime Database created in `europe-west1` would
+  roughly halve it: new Firebase project → Realtime Database → Belgium →
+  paste its config into `firebase.json` here and in `../coop/`.
+
 ## Build
 
 ```bash
