@@ -234,7 +234,7 @@ const FB      = /*__FIREBASE__*/null;
 const IMG={};
 
 const cvs=document.getElementById('game'), ctx=cvs.getContext('2d');
-const VW=1280, VH=720, GND=572;
+const VW=1280, VH=720, GND=556;
 
 /* ---------- палитра ---------- */
 const C={ skin:'#E0A878', stone:'#4A4160', stone2:'#5C5178', wood:'#6B4A32',
@@ -490,7 +490,7 @@ function stepF(f,dt,input){
   if(input && input.u && f.on && !busy && !f.block){ f.vy=-JUMPV; f.on=false; SFX.jump(); }
 
   f.vy=Math.min(1300,f.vy+GRAV*dt);
-  f.x+=f.vx*dt; f.y+=f.vy*dt;
+  f.x+=f.vx*dt; f.y+=f.vy*dt; f.anim=(f.anim||0)+Math.abs(f.vx)*dt*0.02;
   if(f.y+FH>=GND){ f.y=GND-FH; f.vy=0; f.on=true; }
   f.x=Math.max(30,Math.min(VW-FW-30,f.x));
 
@@ -582,6 +582,13 @@ function matchEnd(){
 /* ---------- отрисовка ---------- */
 let _sky=null;
 function drawStage(){
+  if(IMG.arena && IMG.arena.complete && IMG.arena.naturalWidth){
+    const a=IMG.arena, k=Math.max(VW/a.width, VH/a.height);
+    const w=a.width*k, h=a.height*k;
+    ctx.drawImage(a,(VW-w)/2,(VH-h)/2,w,h);
+    ctx.fillStyle='rgba(10,6,20,.22)'; ctx.fillRect(0,GND,VW,VH-GND);   // пол чуть темнее
+    return;
+  }
   if(!_sky){ _sky=ctx.createLinearGradient(0,0,0,VH);
     _sky.addColorStop(0,'#2A1F3E'); _sky.addColorStop(.52,'#4A3356');
     _sky.addColorStop(1,'#7A4A48'); }
@@ -603,12 +610,29 @@ function drawStage(){
   for(let i=0;i<13;i++) ctx.fillRect(i*100+10,GND+10,78,6);
 }
 
+function poseOf(f){
+  if(f.hp<=0) return 'down';
+  if(f.atk==='punch') return f.phase==='rec'&&f.t>0.08 ? 'idle' : 'jab';
+  if(f.atk==='kick')  return f.phase==='wind'&&f.t<0.06 ? 'idle' : 'kick';
+  if(f.stun>0) return 'hurt';
+  if(f.block) return 'block';
+  if(!f.on) return 'jump';
+  if(Math.abs(f.vx)>40) return (Math.floor(f.anim*2)%2) ? 'walk' : 'idle';
+  return 'idle';
+}
 function drawFighter(f){
-  const img=IMG[ f.atk||Math.abs(f.vx)>30 ? (f.face>0?f.sprR:f.sprL) : f.sprF ];
+  const who = f===F1 ? 'moustafa' : 'alisa';
+  const pose = poseOf(f);
+  const pimg = IMG[who+'_'+pose] || IMG[who+'_idle'];
+  const usePose = !!(pimg && pimg.complete && pimg.naturalWidth);
+  const img = usePose ? pimg
+    : IMG[ f.atk||Math.abs(f.vx)>30 ? (f.face>0?f.sprR:f.sprL) : f.sprF ];
   if(!img) return;
-  const H=FH+16, w=img.width*(H/img.height);
-  const cx=f.x+FW/2 + f.lunge*26*f.face;
-  const by=f.y+FH;
+  const H = usePose ? FH+44 : FH+16;
+  const w = img.width*(H/img.height);
+  const cx = f.x+FW/2 + (usePose?0:f.lunge*26*f.face);
+  const by = f.y+FH;
+  f._pose = usePose;
   ctx.save();
   // тень
   ctx.fillStyle='rgba(8,6,14,.34)';
@@ -620,6 +644,7 @@ function drawFighter(f){
     ctx.fillStyle='rgba(91,167,214,.14)'; ctx.fill();
   }
   ctx.translate(cx, by-H/2);
+  if(usePose && f.face<0) ctx.scale(-1,1);          // листы нарисованы вправо
   if(f.flash>0){ ctx.filter='brightness(1.9) saturate(.4)'; }
   ctx.drawImage(img,-w/2,-H/2,w,H);
   ctx.filter='none';
@@ -630,8 +655,10 @@ function drawLimb(f){
   const M=MOVES[f.atk], ext=(f.phase==='active'?1:f.lunge/0.4)*M.reach;
   if(ext<6) return;
   const ax = f.face>0 ? f.x+FW-14 : f.x+14-ext;
-  const col = f.atk==='kick'?'#2B2735':C.skin;
-  part(ax, f.y+M.h+6, ext, f.atk==='kick'?38:32, col, 9);
+  if(!f._pose){
+    const col = f.atk==='kick'?'#2B2735':C.skin;
+    part(ax, f.y+M.h+6, ext, f.atk==='kick'?38:32, col, 9);
+  }
   if(f.phase==='active'){                       // вспышка на кончике удара
     const tx = f.face>0 ? ax+ext : ax;
     ctx.fillStyle='rgba(255,236,180,.85)';
